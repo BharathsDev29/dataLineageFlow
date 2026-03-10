@@ -1,0 +1,118 @@
+{
+  "dataRoles": [
+    {
+      "displayName": "Layers",
+      "name": "layers",
+      "kind": "GroupingOrMeasure",
+      "description": "Drop columns in order. Each column becomes a layer. Rows trace connections."
+    }
+  ],
+  "dataViewMappings": [
+    {
+      "table": {
+        "rows": {
+          "for": { "in": "layers" }
+        }
+      }
+    }
+  ],
+  "objects": {
+    "general": {
+      "properties": {
+        "headerFontSize": {
+          "type": { "numeric": true },
+          "displayName": "Header Font Size"
+        },
+        "cellFontSize": {
+          "type": { "numeric": true },
+          "displayName": "Cell Font Size"
+        },
+        "showBadge": {
+          "type": { "bool": true },
+          "displayName": "Show Count Badge"
+        }
+      }
+    },
+    "lineSettings": {
+      "properties": {
+        "lineOpacity": {
+          "type": { "numeric": true },
+          "displayName": "Line Opacity"
+        },
+        "lineWidth": {
+          "type": { "numeric": true },
+          "displayName": "Line Width"
+        }
+      }
+    },
+    "layerColors": {
+      "properties": {
+        "layer0Color": { "type": { "fill": { "solid": { "color": true } } }, "displayName": "Layer 0" },
+        "layer1Color": { "type": { "fill": { "solid": { "color": true } } }, "displayName": "Layer 1" },
+        "layer2Color": { "type": { "fill": { "solid": { "color": true } } }, "displayName": "Layer 2" },
+        "layer3Color": { "type": { "fill": { "solid": { "color": true } } }, "displayName": "Layer 3" },
+        "layer4Color": { "type": { "fill": { "solid": { "color": true } } }, "displayName": "Layer 4" },
+        "layer5Color": { "type": { "fill": { "solid": { "color": true } } }, "displayName": "Layer 5" },
+        "layer6Color": { "type": { "fill": { "solid": { "color": true } } }, "displayName": "Layer 6" },
+        "layer7Color": { "type": { "fill": { "solid": { "color": true } } }, "displayName": "Layer 7" },
+        "layer8Color": { "type": { "fill": { "solid": { "color": true } } }, "displayName": "Layer 8" },
+        "layer9Color": { "type": { "fill": { "solid": { "color": true } } }, "displayName": "Layer 9" },
+        "layer10Color": { "type": { "fill": { "solid": { "color": true } } }, "displayName": "Layer 10" },
+        "layer11Color": { "type": { "fill": { "solid": { "color": true } } }, "displayName": "Layer 11" }
+      }
+    },
+    "layerSubtitles": {
+      "properties": {
+        "layer0Subtitle": { "type": { "text": true }, "displayName": "Layer 0 Subtitle" },
+        "layer1Subtitle": { "type": { "text": true }, "displayName": "Layer 1 Subtitle" },
+        "layer2Subtitle": { "type": { "text": true }, "displayName": "Layer 2 Subtitle" },
+        "layer3Subtitle": { "type": { "text": true }, "displayName": "Layer 3 Subtitle" },
+        "layer4Subtitle": { "type": { "text": true }, "displayName": "Layer 4 Subtitle" },
+        "layer5Subtitle": { "type": { "text": true }, "displayName": "Layer 5 Subtitle" },
+        "layer6Subtitle": { "type": { "text": true }, "displayName": "Layer 6 Subtitle" },
+        "layer7Subtitle": { "type": { "text": true }, "displayName": "Layer 7 Subtitle" },
+        "layer8Subtitle": { "type": { "text": true }, "displayName": "Layer 8 Subtitle" },
+        "layer9Subtitle": { "type": { "text": true }, "displayName": "Layer 9 Subtitle" },
+        "layer10Subtitle": { "type": { "text": true }, "displayName": "Layer 10 Subtitle" },
+        "layer11Subtitle": { "type": { "text": true }, "displayName": "Layer 11 Subtitle" }
+      }
+    },
+    "urlColumns": {
+      "properties": {
+        "layer0IsUrl": { "type": { "bool": true }, "displayName": "Layer 0 is URL" },
+        "layer1IsUrl": { "type": { "bool": true }, "displayName": "Layer 1 is URL" },
+        "layer2IsUrl": { "type": { "bool": true }, "displayName": "Layer 2 is URL" },
+        "layer3IsUrl": { "type": { "bool": true }, "displayName": "Layer 3 is URL" },
+        "layer4IsUrl": { "type": { "bool": true }, "displayName": "Layer 4 is URL" },
+        "layer5IsUrl": { "type": { "bool": true }, "displayName": "Layer 5 is URL" },
+        "layer6IsUrl": { "type": { "bool": true }, "displayName": "Layer 6 is URL" },
+        "layer7IsUrl": { "type": { "bool": true }, "displayName": "Layer 7 is URL" },
+        "layer8IsUrl": { "type": { "bool": true }, "displayName": "Layer 8 is URL" },
+        "layer9IsUrl": { "type": { "bool": true }, "displayName": "Layer 9 is URL" },
+        "layer10IsUrl": { "type": { "bool": true }, "displayName": "Layer 10 is URL" },
+        "layer11IsUrl": { "type": { "bool": true }, "displayName": "Layer 11 is URL" }
+      }
+    },
+    "interaction": {
+      "properties": {
+        "enableCrossFilter": {
+          "type": { "bool": true },
+          "displayName": "Enable Cross-Filter on Click"
+        },
+        "urlClickAction": {
+          "type": {
+            "enumeration": [
+              { "displayName": "Open in Browser", "value": "open" },
+              { "displayName": "Copy to Clipboard", "value": "copy" },
+              { "displayName": "Copy + Open", "value": "both" }
+            ]
+          },
+          "displayName": "URL Click Action"
+        }
+      }
+    }
+  },
+  "privileges": [
+    { "name": "WebAccess", "essential": true, "parameters": ["*"] }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "data-lineage-flow",
+  "version": "5.6.6",
+  "description": "Data Lineage Flow - Power BI Custom Visual",
+  "main": "src/visual.ts",
+  "scripts": {
+    "pbiviz": "pbiviz",
+    "start": "pbiviz start",
+    "package": "pbiviz package",
+    "lint": "tslint -c tslint.json -p tsconfig.json"
+  },
+  "author": "Bharath S.",
+  "license": "MIT",
+  "dependencies": {
+    "powerbi-visuals-api": "~5.3.0"
+  },
+  "devDependencies": {
+    "typescript": ">=4.2.3 <5.6.0",
+    "@types/d3": "^7.4.0"
+  }
+}

@@ -1,0 +1,63 @@
+
+.lineage-container {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: linear-gradient(135deg, #1a0c0e 0%, #1c0a18 15%, #150a1e 30%, #0e0c22 50%, #0a1024 70%, #081420 85%, #071618 100%);
+  overflow: auto;
+  position: relative;
+}
+/* Subtle animated glow overlay for depth */
+.lineage-container::before{
+  content:'';position:absolute;top:0;left:0;right:0;bottom:0;
+  background:
+    radial-gradient(ellipse 60% 50% at 10% 50%, rgba(249,115,22,0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 60% at 35% 30%, rgba(236,72,153,0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 50% at 55% 60%, rgba(139,92,246,0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 85% 40%, rgba(59,130,246,0.06) 0%, transparent 70%);
+  pointer-events:none;z-index:0;
+}
+.lineage-container::-webkit-scrollbar{width:6px;height:6px}
+.lineage-container::-webkit-scrollbar-track{background:transparent}
+.lineage-container::-webkit-scrollbar-thumb{background:rgba(139,92,246,.3);border-radius:3px}
+.lineage-main{display:flex;position:relative;height:100%}
+.lineage-svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2}
+.lineage-col{flex:1 1 0%;min-width:0;display:flex;flex-direction:column;position:relative;z-index:1}
+.lineage-col-header{text-align:center;padding:10px 4px 6px}
+.lineage-col-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;display:inline-block;vertical-align:middle;margin-right:4px}
+.lineage-col-label{font-weight:700;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:middle;max-width:calc(100% - 14px)}
+.lineage-col-count{color:rgba(180,170,200,0.6)}
+.lineage-nodes{padding:8px 5px;display:flex;flex-direction:column;gap:4px;flex:1}
+.lineage-node{text-align:center;padding:5px 4px;border-radius:4px;font-weight:400;line-height:1.3;min-height:26px;display:flex;align-items:center;justify-content:center;transition:all 0.2s ease;cursor:default;position:relative;overflow:hidden;word-break:break-all}
+.lineage-node:hover{filter:brightness(1.25);z-index:10}
+.lineage-node-text{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;max-width:100%}
+.lineage-badge{position:absolute;top:-5px;right:-2px;font-weight:700;color:#0C0C14;padding:0 3px;border-radius:6px;line-height:14px;min-width:14px;text-align:center}
+.lineage-skip-badge{position:absolute;top:-6px;right:-3px;font-size:6px;font-weight:600;color:rgba(180,170,200,0.5);background:rgba(20,14,30,0.8);padding:1px 3px;border-radius:2px;border:1px solid rgba(139,92,246,0.12);letter-spacing:0.8px;z-index:5}
+.lineage-edge{transition:opacity 0.25s ease,stroke-width 0.25s ease}
+.lineage-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:200px;text-align:center;padding:32px;color:rgba(180,170,200,0.55)}
+.lineage-empty-icon{font-size:36px;margin-bottom:12px;opacity:0.3}
+.lineage-empty-title{font-size:15px;font-weight:600;color:rgba(220,210,240,0.8);margin-bottom:8px}
+.lineage-empty-desc{font-size:11px;line-height:1.7;max-width:340px}
+.lineage-empty-desc strong{color:rgba(180,160,220,0.75)}
+.lineage-node-empty{background:none !important;border:1px dashed rgba(255,255,255,0.06) !important;color:rgba(255,255,255,0.1) !important}
+
+/* v4+: URL nodes */
+.lineage-node.lineage-node-url{cursor:pointer}
+.lineage-node.lineage-node-url:hover{filter:brightness(1.35)}
+.lineage-url-icon{margin-left:4px;font-size:0.8em;opacity:0.6;flex-shrink:0}
+.lineage-node.lineage-node-url:hover .lineage-url-icon{opacity:1}
+
+/* v4+: selected nodes */
+.lineage-node.lineage-node-selected{box-shadow:0 0 8px rgba(255,255,255,0.15);filter:brightness(1.2)}
+
+/* v4+: toast */
+.lineage-toast{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:#22c55e;color:#0c0e14;font-size:11px;font-weight:600;padding:4px 14px;border-radius:20px;z-index:100;pointer-events:none;animation:lineage-toast-in 0.3s ease,lineage-toast-out 0.3s ease 1.2s forwards}
+@keyframes lineage-toast-in{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes lineage-toast-out{to{opacity:0;transform:translateX(-50%) translateY(-6px)}}
+
+/* tooltip */
+.lineage-tooltip{position:absolute;z-index:150;background:rgba(12,10,20,0.92);color:#e8e0f0;font-size:11px;font-weight:500;padding:5px 10px;border-radius:5px;border:1px solid rgba(180,120,255,0.18);box-shadow:0 4px 14px rgba(0,0,0,0.5);white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis;pointer-events:none;backdrop-filter:blur(6px);animation:lineage-tip-in 0.15s ease}
+@keyframes lineage-tip-in{from{opacity:0;transform:translateX(-50%) translateY(2px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* v5+: right-click context menu */
+.lineage-ctx-menu{position:absolute;z-index:200;background:linear-gradient(135deg,rgba(30,20,40,0.95),rgba(15,18,35,0.95));border:1px solid rgba(180,120,255,0.15);border-radius:6px;box-shadow:0 4px 20px rgba(0,0,0,0.6),0 0 12px rgba(139,92,246,0.08);padding:4px 0;min-width:140px;font-size:12px;backdrop-filter:blur(8px)}
+.lineage-ctx-item{padding:7px 14px;color:rgba(220,210,240,0.85);cursor:pointer;display:flex;align-items:center;white-space:nowrap;transition:background 0.15s ease}
+.lineage-ctx-item:hover{background:rgba(139,92,246,0.15);color:#fff}
