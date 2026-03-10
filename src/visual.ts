@@ -12,9 +12,9 @@ function rgba(hex,a){
 
 function healthColor(val){
   var v=(val||"").toLowerCase();
-  if(v==="green"||v==="healthy"||v==="ok"||v==="good") return "#22c55e";
+  if(v==="green"||v==="healthy"||v==="health"||v==="ok"||v==="good") return "#22c55e";
   if(v==="yellow"||v==="warning"||v==="amber"||v==="degraded") return "#eab308";
-  if(v==="red"||v==="critical"||v==="error"||v==="down") return "#ef4444";
+  if(v==="red"||v==="critical"||v==="error"||v==="down"||v==="stale") return "#ef4444";
   return "#6b7280";
 }
 
@@ -26,7 +26,7 @@ function Visual(options){
   this.container=document.createElement("div");
   this.container.className="lineage-container";
   this.target.appendChild(this.container);
-  this.settings={headerFontSize:10,cellFontSize:10,lineOpacity:0.25,lineWidth:1.5,showBadge:true,enableCrossFilter:true,urlClickAction:"open",showTooltip:true};
+  this.settings={headerFontSize:10,cellFontSize:10,storageFontSize:7,lineOpacity:0.25,lineWidth:1.5,showBadge:true,enableCrossFilter:true,urlClickAction:"open",showTooltip:true};
   this.layerColorOverrides={};
   this.layerSubtitleOverrides={};
   this.layerIsUrl={};
@@ -147,13 +147,16 @@ Visual.prototype.update=function(options){
           txt.textContent=node.value;
           el.appendChild(txt);
 
-          /* v6: health indicator dot */
+          /* v6: health indicator */
           if(node.meta&&node.meta.health){
-            var hdot=document.createElement("span");
-            hdot.className="lineage-health-dot";
-            hdot.style.background=healthColor(node.meta.health);
-            hdot.style.boxShadow="0 0 4px "+healthColor(node.meta.health);
-            el.appendChild(hdot);
+            var hVal=(node.meta.health||"").toLowerCase();
+            var isWarn=(hVal==="yellow"||hVal==="warning"||hVal==="amber"||hVal==="degraded");
+            var isRed=(hVal==="red"||hVal==="critical"||hVal==="error"||hVal==="down"||hVal==="stale");
+            var hspan=document.createElement("span");
+            hspan.className="lineage-health-dot";
+            hspan.style.background=healthColor(node.meta.health);
+            hspan.style.boxShadow="0 0 4px "+healthColor(node.meta.health);
+            el.appendChild(hspan);
           }
 
           /* v5 #2: URL icon only for columns marked as URL in format pane */
@@ -162,6 +165,16 @@ Visual.prototype.update=function(options){
             icon.className="lineage-url-icon";
             icon.textContent="\u{1F517}";
             el.appendChild(icon);
+          }
+
+          /* v6: storage label at bottom-left (like badge at top-right) */
+          if(node.meta&&node.meta.storage){
+            var stLabel=document.createElement("span");
+            stLabel.className="lineage-storage-label";
+            stLabel.style.color=rgba(color,0.6);
+            stLabel.style.fontSize=self.settings.storageFontSize+"px";
+            stLabel.textContent=node.meta.storage;
+            el.appendChild(stLabel);
           }
 
           /* v5.2: badge shows downstream (children) count */
@@ -263,7 +276,7 @@ Visual.prototype.update=function(options){
 
 /* ── Classify Columns ── */
 Visual.prototype.classifyColumns=function(cols){
-  var META_SUFFIXES=["__health","__refreshed","__storage","__storageWithUnits"];
+  var META_SUFFIXES=["__health","__refreshed","__storage","__storagewithunits"];
   var layerCols=[];
   var metaCols={};
   for(var c=0;c<cols.length;c++){
@@ -273,7 +286,7 @@ Visual.prototype.classifyColumns=function(cols){
       var sfx=META_SUFFIXES[s];
       if(name.length>sfx.length&&name.slice(-sfx.length).toLowerCase()===sfx){
         var type=sfx.slice(2);
-        if(type==="storageWithUnits") type="storage";
+        if(type==="storagewithunits") type="storage";
         metaCols[c]={baseName:name.slice(0,-sfx.length),type:type};
         isMeta=true;break;
       }
@@ -571,7 +584,7 @@ Visual.prototype.showTooltip=function(el,text,meta){
   nameDiv.style.fontWeight="600";
   tip.appendChild(nameDiv);
   if(meta){
-    if(meta.health){var hd=document.createElement("div");hd.className="lineage-tip-meta";hd.innerHTML='<span class="lineage-health-dot" style="background:'+healthColor(meta.health)+';box-shadow:0 0 4px '+healthColor(meta.health)+';width:6px;height:6px;margin-right:4px"></span>Health: '+meta.health;tip.appendChild(hd);}
+    if(meta.health){var hd=document.createElement("div");hd.className="lineage-tip-meta";var hv2=(meta.health||"").toLowerCase();var isW=(hv2==="yellow"||hv2==="warning"||hv2==="amber"||hv2==="degraded");var isR=(hv2==="red"||hv2==="critical"||hv2==="error"||hv2==="down"||hv2==="stale");hd.innerHTML='<span class="lineage-health-dot" style="background:'+healthColor(meta.health)+';box-shadow:0 0 4px '+healthColor(meta.health)+';width:6px;height:6px;margin-right:4px"></span>Health: '+meta.health;tip.appendChild(hd);}
     if(meta.refreshed){var rd=document.createElement("div");rd.className="lineage-tip-meta";rd.textContent="Refreshed: "+meta.refreshed;tip.appendChild(rd);}
     if(meta.storage){var sd=document.createElement("div");sd.className="lineage-tip-meta";sd.textContent="Storage: "+meta.storage;tip.appendChild(sd);}
   }
@@ -721,6 +734,7 @@ Visual.prototype.readSettings=function(dv){
     if(g.cellFontSize!=null) this.settings.cellFontSize=Math.max(6,Math.min(40,Number(g.cellFontSize)||10));
     if(g.showBadge!=null) this.settings.showBadge=!!g.showBadge;
     if(g.showTooltip!=null) this.settings.showTooltip=!!g.showTooltip;
+    if(g.storageFontSize!=null) this.settings.storageFontSize=Math.max(5,Math.min(20,Number(g.storageFontSize)||7));
   }
   var ls=obj.lineSettings;
   if(ls){
@@ -785,7 +799,8 @@ Visual.prototype.getFormattingModel=function(){
       {displayName:"Header Font Size",uid:"headerFontSize_uid",control:{type:"NumUpDown",properties:{descriptor:{objectName:"general",propertyName:"headerFontSize"},value:g.headerFontSize||10}}},
       {displayName:"Cell Font Size",uid:"cellFontSize_uid",control:{type:"NumUpDown",properties:{descriptor:{objectName:"general",propertyName:"cellFontSize"},value:g.cellFontSize||10}}},
       {displayName:"Show Count Badge",uid:"showBadge_uid",control:{type:"ToggleSwitch",properties:{descriptor:{objectName:"general",propertyName:"showBadge"},value:g.showBadge!=null?g.showBadge:true}}},
-      {displayName:"Show Tooltip on Hover",uid:"showTooltip_uid",control:{type:"ToggleSwitch",properties:{descriptor:{objectName:"general",propertyName:"showTooltip"},value:g.showTooltip!=null?g.showTooltip:true}}}
+      {displayName:"Show Tooltip on Hover",uid:"showTooltip_uid",control:{type:"ToggleSwitch",properties:{descriptor:{objectName:"general",propertyName:"showTooltip"},value:g.showTooltip!=null?g.showTooltip:true}}},
+      {displayName:"Storage Label Font Size",uid:"storageFontSize_uid",control:{type:"NumUpDown",properties:{descriptor:{objectName:"general",propertyName:"storageFontSize"},value:g.storageFontSize||7}}}
     ]}]
   };
 

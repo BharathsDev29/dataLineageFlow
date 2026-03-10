@@ -34,6 +34,10 @@
         "showTooltip": {
           "type": { "bool": true },
           "displayName": "Show Tooltip on Hover"
+        },
+        "storageFontSize": {
+          "type": { "numeric": true },
+          "displayName": "Storage Label Font Size"
         }
       }
     },
