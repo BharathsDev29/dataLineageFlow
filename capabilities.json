@@ -30,6 +30,10 @@
         "showBadge": {
           "type": { "bool": true },
           "displayName": "Show Count Badge"
+        },
+        "showTooltip": {
+          "type": { "bool": true },
+          "displayName": "Show Tooltip on Hover"
         }
       }
     },

@@ -10,6 +10,14 @@ function rgba(hex,a){
   return "rgba("+r+","+g+","+b+","+a+")";
 }
 
+function healthColor(val){
+  var v=(val||"").toLowerCase();
+  if(v==="green"||v==="healthy"||v==="ok"||v==="good") return "#22c55e";
+  if(v==="yellow"||v==="warning"||v==="amber"||v==="degraded") return "#eab308";
+  if(v==="red"||v==="critical"||v==="error"||v==="down") return "#ef4444";
+  return "#6b7280";
+}
+
 /* ── Constructor ── */
 function Visual(options){
   this.target=options.element;
@@ -18,7 +26,7 @@ function Visual(options){
   this.container=document.createElement("div");
   this.container.className="lineage-container";
   this.target.appendChild(this.container);
-  this.settings={headerFontSize:10,cellFontSize:10,lineOpacity:0.25,lineWidth:1.5,showBadge:true,enableCrossFilter:true,urlClickAction:"open"};
+  this.settings={headerFontSize:10,cellFontSize:10,lineOpacity:0.25,lineWidth:1.5,showBadge:true,enableCrossFilter:true,urlClickAction:"open",showTooltip:true};
   this.layerColorOverrides={};
   this.layerSubtitleOverrides={};
   this.layerIsUrl={};
@@ -45,8 +53,14 @@ Visual.prototype.update=function(options){
   var table=dv.table,cols=table.columns,rows=table.rows,numCols=cols.length;
   if(rows.length===0){this.renderEmpty();return;}
 
-  var layers=this.buildLayers(cols,rows,numCols);
-  var connections=this.buildConnections(rows,layers,numCols);
+  var classified=this.classifyColumns(cols);
+  var layerCols=classified.layerCols;
+  var metaMap=classified.metaMap;
+  var numLayers=layerCols.length;
+  if(numLayers===0){this.renderEmpty();return;}
+
+  var layers=this.buildLayers(cols,rows,layerCols,metaMap);
+  var connections=this.buildConnections(rows,layers,layerCols);
   this.buildSelectionIds(table,rows);
 
   var vw=options.viewport.width,vh=options.viewport.height;
@@ -69,7 +83,7 @@ Visual.prototype.update=function(options){
   this._subtitleEls={};
   this._subtitleOriginals={};
 
-  for(var ci=0;ci<numCols;ci++){
+  for(var ci=0;ci<numLayers;ci++){
     (function(colIdx){
       var layer=layers[colIdx];
       var color=self.getLayerColor(colIdx);
@@ -77,7 +91,7 @@ Visual.prototype.update=function(options){
       var col=document.createElement("div");
       col.className="lineage-col";
       col.style.background="linear-gradient(180deg, "+rgba(color,0.13)+" 0%, "+rgba(color,0.03)+" 100%)";
-      if(colIdx<numCols-1) col.style.borderRight="1px solid "+rgba(color,0.08);
+      if(colIdx<numLayers-1) col.style.borderRight="1px solid "+rgba(color,0.08);
 
       var header=document.createElement("div");
       header.className="lineage-col-header";
@@ -133,6 +147,15 @@ Visual.prototype.update=function(options){
           txt.textContent=node.value;
           el.appendChild(txt);
 
+          /* v6: health indicator dot */
+          if(node.meta&&node.meta.health){
+            var hdot=document.createElement("span");
+            hdot.className="lineage-health-dot";
+            hdot.style.background=healthColor(node.meta.health);
+            hdot.style.boxShadow="0 0 4px "+healthColor(node.meta.health);
+            el.appendChild(hdot);
+          }
+
           /* v5 #2: URL icon only for columns marked as URL in format pane */
           if(isUrlCol){
             var icon=document.createElement("span");
@@ -161,7 +184,7 @@ Visual.prototype.update=function(options){
           el.addEventListener("mouseenter",function(){
             if(self._clickedKey) return;
             self.highlightNode(colIdx,nodeIdx,layers,connections,nodeEls,svg);
-            self.showTooltip(el,node.value);
+            if(self.settings.showTooltip) self.showTooltip(el,node.value,node.meta);
           });
           el.addEventListener("mouseleave",function(){
             if(self._clickedKey) return;
@@ -238,10 +261,44 @@ Visual.prototype.update=function(options){
   });
 };
 
+/* ── Classify Columns ── */
+Visual.prototype.classifyColumns=function(cols){
+  var META_SUFFIXES=["__health","__refreshed","__storage","__storageWithUnits"];
+  var layerCols=[];
+  var metaCols={};
+  for(var c=0;c<cols.length;c++){
+    var name=cols[c].displayName||"";
+    var isMeta=false;
+    for(var s=0;s<META_SUFFIXES.length;s++){
+      var sfx=META_SUFFIXES[s];
+      if(name.length>sfx.length&&name.slice(-sfx.length).toLowerCase()===sfx){
+        var type=sfx.slice(2);
+        if(type==="storageWithUnits") type="storage";
+        metaCols[c]={baseName:name.slice(0,-sfx.length),type:type};
+        isMeta=true;break;
+      }
+    }
+    if(!isMeta) layerCols.push(c);
+  }
+  var nameToCol={};
+  for(var i=0;i<layerCols.length;i++) nameToCol[(cols[layerCols[i]].displayName||"")]=layerCols[i];
+  var metaMap={};
+  for(var mc in metaCols){
+    var m=metaCols[mc];
+    var lc=nameToCol[m.baseName];
+    if(lc!=null){
+      if(!metaMap[lc]) metaMap[lc]={};
+      metaMap[lc][m.type]=parseInt(mc,10);
+    }
+  }
+  return {layerCols:layerCols,metaMap:metaMap};
+};
+
 /* ── Build Layers ── */
-Visual.prototype.buildLayers=function(cols,rows,numCols){
+Visual.prototype.buildLayers=function(cols,rows,layerCols,metaMap){
   var layers=[];
-  for(var c=0;c<numCols;c++){
+  for(var li=0;li<layerCols.length;li++){
+    var c=layerCols[li];
     var map=new Map();
     for(var r=0;r<rows.length;r++){
       var v=rows[r][c];
@@ -250,21 +307,33 @@ Visual.prototype.buildLayers=function(cols,rows,numCols){
       if(!map.has(s)) map.set(s,{value:s,rows:[]});
       map.get(s).rows.push(r);
     }
-    layers.push({name:cols[c].displayName||"Layer "+c,nodes:Array.from(map.values()),count:map.size});
+    var nodes=Array.from(map.values());
+    var meta=metaMap[c];
+    if(meta){
+      for(var ni=0;ni<nodes.length;ni++){
+        var nd=nodes[ni],row=nd.rows[0];
+        nd.meta={};
+        if(meta.health!=null){var hv=rows[row][meta.health];nd.meta.health=hv==null?"":String(hv).trim();}
+        if(meta.refreshed!=null){var rv=rows[row][meta.refreshed];nd.meta.refreshed=rv==null?"":String(rv).trim();}
+        if(meta.storage!=null){var sv=rows[row][meta.storage];nd.meta.storage=sv==null?"":String(sv).trim();}
+      }
+    }
+    layers.push({name:cols[c].displayName||"Layer "+li,nodes:nodes,count:map.size});
   }
   return layers;
 };
 
 /* ── Build Connections ── */
-Visual.prototype.buildConnections=function(rows,layers,numCols){
+Visual.prototype.buildConnections=function(rows,layers,layerCols){
   var conns=[];
   var seen={};
   for(var r=0;r<rows.length;r++){
     var filled=[];
-    for(var c=0;c<numCols;c++){
+    for(var lc=0;lc<layerCols.length;lc++){
+      var c=layerCols[lc];
       var v=rows[r][c];
       var s=v==null?"":String(v).trim();
-      if(s!=="") filled.push({col:c,val:s});
+      if(s!=="") filled.push({col:lc,val:s});
     }
     for(var i=0;i<filled.length-1;i++){
       var fromCol=filled[i].col,toCol=filled[i+1].col;
@@ -493,11 +562,19 @@ Visual.prototype.showToast=function(msg){
 };
 
 /* ── Tooltip (below hovered node) ── */
-Visual.prototype.showTooltip=function(el,text){
+Visual.prototype.showTooltip=function(el,text,meta){
   this.hideTooltip();
   var tip=document.createElement("div");
   tip.className="lineage-tooltip";
-  tip.textContent=text;
+  var nameDiv=document.createElement("div");
+  nameDiv.textContent=text;
+  nameDiv.style.fontWeight="600";
+  tip.appendChild(nameDiv);
+  if(meta){
+    if(meta.health){var hd=document.createElement("div");hd.className="lineage-tip-meta";hd.innerHTML='<span class="lineage-health-dot" style="background:'+healthColor(meta.health)+';box-shadow:0 0 4px '+healthColor(meta.health)+';width:6px;height:6px;margin-right:4px"></span>Health: '+meta.health;tip.appendChild(hd);}
+    if(meta.refreshed){var rd=document.createElement("div");rd.className="lineage-tip-meta";rd.textContent="Refreshed: "+meta.refreshed;tip.appendChild(rd);}
+    if(meta.storage){var sd=document.createElement("div");sd.className="lineage-tip-meta";sd.textContent="Storage: "+meta.storage;tip.appendChild(sd);}
+  }
   this.container.appendChild(tip);
   var elRect=el.getBoundingClientRect();
   var cRect=this.container.getBoundingClientRect();
@@ -643,6 +720,7 @@ Visual.prototype.readSettings=function(dv){
     if(g.headerFontSize!=null) this.settings.headerFontSize=Math.max(6,Math.min(40,Number(g.headerFontSize)||10));
     if(g.cellFontSize!=null) this.settings.cellFontSize=Math.max(6,Math.min(40,Number(g.cellFontSize)||10));
     if(g.showBadge!=null) this.settings.showBadge=!!g.showBadge;
+    if(g.showTooltip!=null) this.settings.showTooltip=!!g.showTooltip;
   }
   var ls=obj.lineSettings;
   if(ls){
@@ -686,7 +764,7 @@ Visual.prototype.getLayerColor=function(idx){
 };
 
 Visual.prototype.renderEmpty=function(){
-  this.container.innerHTML='<div class="lineage-empty"><div class="lineage-empty-icon">&#8644;</div><div class="lineage-empty-title">Data Lineage Flow v5</div><div class="lineage-empty-desc">Drop columns into the <strong>Layers</strong> well in order.<br/>Each column becomes a layer. Duplicate values are grouped.<br/>Connections trace each row path; skipped layers use dashed lines.<br/><br/><strong>v5:</strong> Directed lineage trace \u2022 URL columns via Format pane \u2022 Cross-filter toggle \u2022 Custom subtitles</div></div>';
+  this.container.innerHTML='<div class="lineage-empty"><div class="lineage-empty-icon">&#8644;</div><div class="lineage-empty-title">Data Lineage Flow v6</div><div class="lineage-empty-desc">Drop columns into the <strong>Layers</strong> well in order.<br/>Each column becomes a layer. Duplicate values are grouped.<br/>Connections trace each row path; skipped layers use dashed lines.<br/><br/><strong>v6:</strong> Metadata columns (<code>X__health</code>, <code>X__refreshed</code>, <code>X__storage</code>) \u2022 Tooltip toggle \u2022 Health indicators<br/><strong>v5:</strong> Directed lineage trace \u2022 URL columns \u2022 Cross-filter \u2022 Custom subtitles</div></div>';
 };
 
 /* ── Formatting Model ── */
@@ -706,7 +784,8 @@ Visual.prototype.getFormattingModel=function(){
     groups:[{uid:"general_group",slices:[
       {displayName:"Header Font Size",uid:"headerFontSize_uid",control:{type:"NumUpDown",properties:{descriptor:{objectName:"general",propertyName:"headerFontSize"},value:g.headerFontSize||10}}},
       {displayName:"Cell Font Size",uid:"cellFontSize_uid",control:{type:"NumUpDown",properties:{descriptor:{objectName:"general",propertyName:"cellFontSize"},value:g.cellFontSize||10}}},
-      {displayName:"Show Count Badge",uid:"showBadge_uid",control:{type:"ToggleSwitch",properties:{descriptor:{objectName:"general",propertyName:"showBadge"},value:g.showBadge!=null?g.showBadge:true}}}
+      {displayName:"Show Count Badge",uid:"showBadge_uid",control:{type:"ToggleSwitch",properties:{descriptor:{objectName:"general",propertyName:"showBadge"},value:g.showBadge!=null?g.showBadge:true}}},
+      {displayName:"Show Tooltip on Hover",uid:"showTooltip_uid",control:{type:"ToggleSwitch",properties:{descriptor:{objectName:"general",propertyName:"showTooltip"},value:g.showTooltip!=null?g.showTooltip:true}}}
     ]}]
   };
 

@@ -4,8 +4,8 @@
     "displayName": "Data Lineage Flow",
     "guid": "dataLineageFlow1163C8FD56F049FA866FE2D65619549C",
     "visualClassName": "Visual",
-    "version": "5.6.6",
-    "description": "Grouped-node data lineage: Sky gradient dark theme, right-click copy, directed trace, URL columns, cross-filter, custom subtitles",
+    "version": "6.0.0",
+    "description": "Grouped-node data lineage: Dark theme, directed trace, URL columns, cross-filter, custom subtitles, metadata columns (health/refreshed/storage)",
     "supportUrl": "https://github.com",
     "gitHubUrl": ""
   },
