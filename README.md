@@ -73,4 +73,3 @@ Edit `version` in `pbiviz.json` then run `python build.py`
 - URL column support (open/copy/both)
 - Dynamic subtitle updates during trace
 - Downstream children badge count
-- Sky Glass gradient dark theme
