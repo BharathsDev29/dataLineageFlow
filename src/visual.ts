@@ -10,6 +10,14 @@ function rgba(hex,a){
   return "rgba("+r+","+g+","+b+","+a+")";
 }
 
+function healthColor(val){
+  var v=(val||"").trim().toLowerCase();
+  if(v==="green"||v==="healthy"||v==="health"||v==="ok"||v==="good") return "#22c55e";
+  if(v==="yellow"||v==="warning"||v==="amber"||v==="degraded") return "#eab308";
+  if(v==="red"||v==="critical"||v==="error"||v==="down"||v==="stale") return "#ef4444";
+  return "#6b7280";
+}
+
 /* ── Constructor ── */
 function Visual(options){
   this.target=options.element;
@@ -18,7 +26,7 @@ function Visual(options){
   this.container=document.createElement("div");
   this.container.className="lineage-container";
   this.target.appendChild(this.container);
-  this.settings={headerFontSize:10,cellFontSize:10,lineOpacity:0.25,lineWidth:1.5,showBadge:true,enableCrossFilter:true,urlClickAction:"open"};
+  this.settings={headerFontSize:10,cellFontSize:10,storageFontSize:7,lineOpacity:0.25,lineWidth:1.5,showBadge:true,enableCrossFilter:true,urlClickAction:"open",showTooltip:true};
   this.layerColorOverrides={};
   this.layerSubtitleOverrides={};
   this.layerIsUrl={};
@@ -45,8 +53,14 @@ Visual.prototype.update=function(options){
   var table=dv.table,cols=table.columns,rows=table.rows,numCols=cols.length;
   if(rows.length===0){this.renderEmpty();return;}
 
-  var layers=this.buildLayers(cols,rows,numCols);
-  var connections=this.buildConnections(rows,layers,numCols);
+  var classified=this.classifyColumns(cols);
+  var layerCols=classified.layerCols;
+  var metaMap=classified.metaMap;
+  var numLayers=layerCols.length;
+  if(numLayers===0){this.renderEmpty();return;}
+
+  var layers=this.buildLayers(cols,rows,layerCols,metaMap);
+  var connections=this.buildConnections(rows,layers,layerCols);
   this.buildSelectionIds(table,rows);
 
   var vw=options.viewport.width,vh=options.viewport.height;
@@ -69,7 +83,7 @@ Visual.prototype.update=function(options){
   this._subtitleEls={};
   this._subtitleOriginals={};
 
-  for(var ci=0;ci<numCols;ci++){
+  for(var ci=0;ci<numLayers;ci++){
     (function(colIdx){
       var layer=layers[colIdx];
       var color=self.getLayerColor(colIdx);
@@ -77,7 +91,7 @@ Visual.prototype.update=function(options){
       var col=document.createElement("div");
       col.className="lineage-col";
       col.style.background="linear-gradient(180deg, "+rgba(color,0.13)+" 0%, "+rgba(color,0.03)+" 100%)";
-      if(colIdx<numCols-1) col.style.borderRight="1px solid "+rgba(color,0.08);
+      if(colIdx<numLayers-1) col.style.borderRight="1px solid "+rgba(color,0.08);
 
       var header=document.createElement("div");
       header.className="lineage-col-header";
@@ -110,9 +124,11 @@ Visual.prototype.update=function(options){
       } else {
         cnt.textContent=layer.count+" table"+(layer.count!==1?"s":"");
       }
+      /* v6.1: health summary dots in subtitle */
+      self._appendHealthSummary(cnt,layer.nodes);
       header.appendChild(cnt);
       self._subtitleEls[colIdx]=cnt;
-      self._subtitleOriginals[colIdx]=cnt.textContent;
+      self._subtitleOriginals[colIdx]=cnt.innerHTML;
       col.appendChild(header);
 
       var nodesDiv=document.createElement("div");
@@ -133,12 +149,34 @@ Visual.prototype.update=function(options){
           txt.textContent=node.value;
           el.appendChild(txt);
 
+          /* v6: health indicator */
+          if(node.meta&&node.meta.health){
+            var hVal=(node.meta.health||"").toLowerCase();
+            var isWarn=(hVal==="yellow"||hVal==="warning"||hVal==="amber"||hVal==="degraded");
+            var isRed=(hVal==="red"||hVal==="critical"||hVal==="error"||hVal==="down"||hVal==="stale");
+            var hspan=document.createElement("span");
+            hspan.className="lineage-health-dot";
+            hspan.style.background=healthColor(node.meta.health);
+            hspan.style.boxShadow="0 0 4px "+healthColor(node.meta.health);
+            el.appendChild(hspan);
+          }
+
           /* v5 #2: URL icon only for columns marked as URL in format pane */
           if(isUrlCol){
             var icon=document.createElement("span");
             icon.className="lineage-url-icon";
             icon.textContent="\u{1F517}";
             el.appendChild(icon);
+          }
+
+          /* v6: storage label at bottom-left (like badge at top-right) */
+          if(node.meta&&node.meta.storage){
+            var stLabel=document.createElement("span");
+            stLabel.className="lineage-storage-label";
+            stLabel.style.color=rgba(color,0.6);
+            stLabel.style.fontSize=self.settings.storageFontSize+"px";
+            stLabel.textContent=node.meta.storage;
+            el.appendChild(stLabel);
           }
 
           /* v5.2: badge shows downstream (children) count */
@@ -159,12 +197,21 @@ Visual.prototype.update=function(options){
 
           /* HOVER: immediate neighbors only (unchanged) */
           el.addEventListener("mouseenter",function(){
-            if(self._clickedKey) return;
+            if(self._clickedKey){
+              /* In trace mode: show tooltip for traced nodes only */
+              if(self.settings.showTooltip&&el.classList.contains("lineage-node-selected")){
+                self.showTooltip(el,node.value,node.meta);
+              }
+              return;
+            }
             self.highlightNode(colIdx,nodeIdx,layers,connections,nodeEls,svg);
-            self.showTooltip(el,node.value);
+            if(self.settings.showTooltip) self.showTooltip(el,node.value,node.meta);
           });
           el.addEventListener("mouseleave",function(){
-            if(self._clickedKey) return;
+            if(self._clickedKey){
+              self.hideTooltip();
+              return;
+            }
             self.clearHighlight(layers,nodeEls,svg);
             self.hideTooltip();
           });
@@ -192,6 +239,9 @@ Visual.prototype.update=function(options){
             }
 
             var key=colIdx+"-"+nodeIdx;
+
+            /* Hide any lingering tooltip on click */
+            self.hideTooltip();
 
             /* Toggle off */
             if(self._clickedKey===key){
@@ -238,10 +288,44 @@ Visual.prototype.update=function(options){
   });
 };
 
+/* ── Classify Columns ── */
+Visual.prototype.classifyColumns=function(cols){
+  var META_SUFFIXES=["__health","__refreshed","__storage","__storagewithunits"];
+  var layerCols=[];
+  var metaCols={};
+  for(var c=0;c<cols.length;c++){
+    var name=cols[c].displayName||"";
+    var isMeta=false;
+    for(var s=0;s<META_SUFFIXES.length;s++){
+      var sfx=META_SUFFIXES[s];
+      if(name.length>sfx.length&&name.slice(-sfx.length).toLowerCase()===sfx){
+        var type=sfx.slice(2);
+        if(type==="storagewithunits") type="storage";
+        metaCols[c]={baseName:name.slice(0,-sfx.length),type:type};
+        isMeta=true;break;
+      }
+    }
+    if(!isMeta) layerCols.push(c);
+  }
+  var nameToCol={};
+  for(var i=0;i<layerCols.length;i++) nameToCol[(cols[layerCols[i]].displayName||"")]=layerCols[i];
+  var metaMap={};
+  for(var mc in metaCols){
+    var m=metaCols[mc];
+    var lc=nameToCol[m.baseName];
+    if(lc!=null){
+      if(!metaMap[lc]) metaMap[lc]={};
+      metaMap[lc][m.type]=parseInt(mc,10);
+    }
+  }
+  return {layerCols:layerCols,metaMap:metaMap};
+};
+
 /* ── Build Layers ── */
-Visual.prototype.buildLayers=function(cols,rows,numCols){
+Visual.prototype.buildLayers=function(cols,rows,layerCols,metaMap){
   var layers=[];
-  for(var c=0;c<numCols;c++){
+  for(var li=0;li<layerCols.length;li++){
+    var c=layerCols[li];
     var map=new Map();
     for(var r=0;r<rows.length;r++){
       var v=rows[r][c];
@@ -250,21 +334,33 @@ Visual.prototype.buildLayers=function(cols,rows,numCols){
       if(!map.has(s)) map.set(s,{value:s,rows:[]});
       map.get(s).rows.push(r);
     }
-    layers.push({name:cols[c].displayName||"Layer "+c,nodes:Array.from(map.values()),count:map.size});
+    var nodes=Array.from(map.values());
+    var meta=metaMap[c];
+    if(meta){
+      for(var ni=0;ni<nodes.length;ni++){
+        var nd=nodes[ni],row=nd.rows[0];
+        nd.meta={};
+        if(meta.health!=null){var hv=rows[row][meta.health];nd.meta.health=hv==null?"":String(hv).trim();}
+        if(meta.refreshed!=null){var rv=rows[row][meta.refreshed];nd.meta.refreshed=rv==null?"":String(rv).trim();}
+        if(meta.storage!=null){var sv=rows[row][meta.storage];nd.meta.storage=sv==null?"":String(sv).trim();}
+      }
+    }
+    layers.push({name:cols[c].displayName||"Layer "+li,nodes:nodes,count:map.size});
   }
   return layers;
 };
 
 /* ── Build Connections ── */
-Visual.prototype.buildConnections=function(rows,layers,numCols){
+Visual.prototype.buildConnections=function(rows,layers,layerCols){
   var conns=[];
   var seen={};
   for(var r=0;r<rows.length;r++){
     var filled=[];
-    for(var c=0;c<numCols;c++){
+    for(var lc=0;lc<layerCols.length;lc++){
+      var c=layerCols[lc];
       var v=rows[r][c];
       var s=v==null?"":String(v).trim();
-      if(s!=="") filled.push({col:c,val:s});
+      if(s!=="") filled.push({col:lc,val:s});
     }
     for(var i=0;i<filled.length-1;i++){
       var fromCol=filled[i].col,toCol=filled[i+1].col;
@@ -445,6 +541,13 @@ Visual.prototype.traceDirectedLineage=function(col,idx,layers,connections,nodeEl
       } else {
         this._subtitleEls[sc].textContent="0 of "+totalCount+" "+unit;
       }
+      /* v6.1: show health counts for highlighted nodes only */
+      var highlightedNodes=[];
+      for(var hk in connected){
+        var hp=hk.split("-");
+        if(parseInt(hp[0],10)===sc) highlightedNodes.push(layers[sc].nodes[parseInt(hp[1],10)]);
+      }
+      this._appendHealthSummary(this._subtitleEls[sc],highlightedNodes);
     }
   }
 };
@@ -452,6 +555,33 @@ Visual.prototype.traceDirectedLineage=function(col,idx,layers,connections,nodeEl
 /* ── Clear selected ── */
 Visual.prototype.clearAllSelected=function(nodeEls){
   for(var key in nodeEls) nodeEls[key].classList.remove("lineage-node-selected");
+};
+
+/* ── Health summary: count green/yellow/red from nodes ── */
+Visual.prototype._countHealth=function(nodes){
+  var g=0,y=0,r=0;
+  for(var i=0;i<nodes.length;i++){
+    if(!nodes[i].meta||!nodes[i].meta.health) continue;
+    var v=(nodes[i].meta.health||"").trim().toLowerCase();
+    if(v==="green"||v==="healthy"||v==="health"||v==="ok"||v==="good") g++;
+    else if(v==="yellow"||v==="warning"||v==="amber"||v==="degraded") y++;
+    else if(v==="red"||v==="critical"||v==="error"||v==="down"||v==="stale") r++;
+  }
+  return {green:g,yellow:y,red:r,total:g+y+r};
+};
+
+/* ── Append colored health dots to a subtitle element ── */
+Visual.prototype._appendHealthSummary=function(el,nodes){
+  var h=this._countHealth(nodes);
+  if(h.total===0) return;
+  var span=document.createElement("span");
+  span.className="lineage-health-summary";
+  var parts=[];
+  if(h.green>0) parts.push('<span style="color:#22c55e">\u25CF</span>'+h.green);
+  if(h.yellow>0) parts.push('<span style="color:#eab308">\u25CF</span>'+h.yellow);
+  if(h.red>0) parts.push('<span style="color:#ef4444">\u25CF</span>'+h.red);
+  span.innerHTML=" \u00b7 "+parts.join(" ");
+  el.appendChild(span);
 };
 
 /* ── Copy to clipboard + toast ── */
@@ -493,11 +623,19 @@ Visual.prototype.showToast=function(msg){
 };
 
 /* ── Tooltip (below hovered node) ── */
-Visual.prototype.showTooltip=function(el,text){
+Visual.prototype.showTooltip=function(el,text,meta){
   this.hideTooltip();
   var tip=document.createElement("div");
   tip.className="lineage-tooltip";
-  tip.textContent=text;
+  var nameDiv=document.createElement("div");
+  nameDiv.textContent=text;
+  nameDiv.style.fontWeight="600";
+  tip.appendChild(nameDiv);
+  if(meta){
+    if(meta.health){var hd=document.createElement("div");hd.className="lineage-tip-meta";var hv2=(meta.health||"").toLowerCase();var isW=(hv2==="yellow"||hv2==="warning"||hv2==="amber"||hv2==="degraded");var isR=(hv2==="red"||hv2==="critical"||hv2==="error"||hv2==="down"||hv2==="stale");hd.innerHTML='<span class="lineage-health-dot" style="background:'+healthColor(meta.health)+';box-shadow:0 0 4px '+healthColor(meta.health)+';width:6px;height:6px;margin-right:4px"></span>Health: '+meta.health;tip.appendChild(hd);}
+    if(meta.refreshed){var rd=document.createElement("div");rd.className="lineage-tip-meta";rd.textContent="Refreshed: "+meta.refreshed;tip.appendChild(rd);}
+    if(meta.storage){var sd=document.createElement("div");sd.className="lineage-tip-meta";sd.textContent="Storage: "+meta.storage;tip.appendChild(sd);}
+  }
   this.container.appendChild(tip);
   var elRect=el.getBoundingClientRect();
   var cRect=this.container.getBoundingClientRect();
@@ -630,7 +768,7 @@ Visual.prototype.clearHighlight=function(layers,nodeEls,svg){
   });
   /* v5.4: restore original subtitles */
   for(var sc in this._subtitleOriginals){
-    if(this._subtitleEls[sc]) this._subtitleEls[sc].textContent=this._subtitleOriginals[sc];
+    if(this._subtitleEls[sc]) this._subtitleEls[sc].innerHTML=this._subtitleOriginals[sc];
   }
 };
 
@@ -643,6 +781,8 @@ Visual.prototype.readSettings=function(dv){
     if(g.headerFontSize!=null) this.settings.headerFontSize=Math.max(6,Math.min(40,Number(g.headerFontSize)||10));
     if(g.cellFontSize!=null) this.settings.cellFontSize=Math.max(6,Math.min(40,Number(g.cellFontSize)||10));
     if(g.showBadge!=null) this.settings.showBadge=!!g.showBadge;
+    if(g.showTooltip!=null) this.settings.showTooltip=!!g.showTooltip;
+    if(g.storageFontSize!=null) this.settings.storageFontSize=Math.max(5,Math.min(20,Number(g.storageFontSize)||7));
   }
   var ls=obj.lineSettings;
   if(ls){
@@ -686,7 +826,7 @@ Visual.prototype.getLayerColor=function(idx){
 };
 
 Visual.prototype.renderEmpty=function(){
-  this.container.innerHTML='<div class="lineage-empty"><div class="lineage-empty-icon">&#8644;</div><div class="lineage-empty-title">Data Lineage Flow v5</div><div class="lineage-empty-desc">Drop columns into the <strong>Layers</strong> well in order.<br/>Each column becomes a layer. Duplicate values are grouped.<br/>Connections trace each row path; skipped layers use dashed lines.<br/><br/><strong>v5:</strong> Directed lineage trace \u2022 URL columns via Format pane \u2022 Cross-filter toggle \u2022 Custom subtitles</div></div>';
+  this.container.innerHTML='<div class="lineage-empty"><div class="lineage-empty-icon">&#8644;</div><div class="lineage-empty-title">Data Lineage Flow v6</div><div class="lineage-empty-desc">Drop columns into the <strong>Layers</strong> well in order.<br/>Each column becomes a layer. Duplicate values are grouped.<br/>Connections trace each row path; skipped layers use dashed lines.<br/><br/><strong>v6:</strong> Metadata columns (<code>X__health</code>, <code>X__refreshed</code>, <code>X__storage</code>) \u2022 Tooltip toggle \u2022 Health indicators<br/><strong>v5:</strong> Directed lineage trace \u2022 URL columns \u2022 Cross-filter \u2022 Custom subtitles</div></div>';
 };
 
 /* ── Formatting Model ── */
@@ -706,7 +846,9 @@ Visual.prototype.getFormattingModel=function(){
     groups:[{uid:"general_group",slices:[
       {displayName:"Header Font Size",uid:"headerFontSize_uid",control:{type:"NumUpDown",properties:{descriptor:{objectName:"general",propertyName:"headerFontSize"},value:g.headerFontSize||10}}},
       {displayName:"Cell Font Size",uid:"cellFontSize_uid",control:{type:"NumUpDown",properties:{descriptor:{objectName:"general",propertyName:"cellFontSize"},value:g.cellFontSize||10}}},
-      {displayName:"Show Count Badge",uid:"showBadge_uid",control:{type:"ToggleSwitch",properties:{descriptor:{objectName:"general",propertyName:"showBadge"},value:g.showBadge!=null?g.showBadge:true}}}
+      {displayName:"Show Count Badge",uid:"showBadge_uid",control:{type:"ToggleSwitch",properties:{descriptor:{objectName:"general",propertyName:"showBadge"},value:g.showBadge!=null?g.showBadge:true}}},
+      {displayName:"Show Tooltip on Hover",uid:"showTooltip_uid",control:{type:"ToggleSwitch",properties:{descriptor:{objectName:"general",propertyName:"showTooltip"},value:g.showTooltip!=null?g.showTooltip:true}}},
+      {displayName:"Storage Label Font Size",uid:"storageFontSize_uid",control:{type:"NumUpDown",properties:{descriptor:{objectName:"general",propertyName:"storageFontSize"},value:g.storageFontSize||7}}}
     ]}]
   };
 
