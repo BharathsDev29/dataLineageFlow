@@ -11,7 +11,7 @@ function rgba(hex,a){
 }
 
 function healthColor(val){
-  var v=(val||"").toLowerCase();
+  var v=(val||"").trim().toLowerCase();
   if(v==="green"||v==="healthy"||v==="health"||v==="ok"||v==="good") return "#22c55e";
   if(v==="yellow"||v==="warning"||v==="amber"||v==="degraded") return "#eab308";
   if(v==="red"||v==="critical"||v==="error"||v==="down"||v==="stale") return "#ef4444";
@@ -124,9 +124,11 @@ Visual.prototype.update=function(options){
       } else {
         cnt.textContent=layer.count+" table"+(layer.count!==1?"s":"");
       }
+      /* v6.1: health summary dots in subtitle */
+      self._appendHealthSummary(cnt,layer.nodes);
       header.appendChild(cnt);
       self._subtitleEls[colIdx]=cnt;
-      self._subtitleOriginals[colIdx]=cnt.textContent;
+      self._subtitleOriginals[colIdx]=cnt.innerHTML;
       col.appendChild(header);
 
       var nodesDiv=document.createElement("div");
@@ -195,12 +197,21 @@ Visual.prototype.update=function(options){
 
           /* HOVER: immediate neighbors only (unchanged) */
           el.addEventListener("mouseenter",function(){
-            if(self._clickedKey) return;
+            if(self._clickedKey){
+              /* In trace mode: show tooltip for traced nodes only */
+              if(self.settings.showTooltip&&el.classList.contains("lineage-node-selected")){
+                self.showTooltip(el,node.value,node.meta);
+              }
+              return;
+            }
             self.highlightNode(colIdx,nodeIdx,layers,connections,nodeEls,svg);
             if(self.settings.showTooltip) self.showTooltip(el,node.value,node.meta);
           });
           el.addEventListener("mouseleave",function(){
-            if(self._clickedKey) return;
+            if(self._clickedKey){
+              self.hideTooltip();
+              return;
+            }
             self.clearHighlight(layers,nodeEls,svg);
             self.hideTooltip();
           });
@@ -228,6 +239,9 @@ Visual.prototype.update=function(options){
             }
 
             var key=colIdx+"-"+nodeIdx;
+
+            /* Hide any lingering tooltip on click */
+            self.hideTooltip();
 
             /* Toggle off */
             if(self._clickedKey===key){
@@ -527,6 +541,13 @@ Visual.prototype.traceDirectedLineage=function(col,idx,layers,connections,nodeEl
       } else {
         this._subtitleEls[sc].textContent="0 of "+totalCount+" "+unit;
       }
+      /* v6.1: show health counts for highlighted nodes only */
+      var highlightedNodes=[];
+      for(var hk in connected){
+        var hp=hk.split("-");
+        if(parseInt(hp[0],10)===sc) highlightedNodes.push(layers[sc].nodes[parseInt(hp[1],10)]);
+      }
+      this._appendHealthSummary(this._subtitleEls[sc],highlightedNodes);
     }
   }
 };
@@ -534,6 +555,33 @@ Visual.prototype.traceDirectedLineage=function(col,idx,layers,connections,nodeEl
 /* ── Clear selected ── */
 Visual.prototype.clearAllSelected=function(nodeEls){
   for(var key in nodeEls) nodeEls[key].classList.remove("lineage-node-selected");
+};
+
+/* ── Health summary: count green/yellow/red from nodes ── */
+Visual.prototype._countHealth=function(nodes){
+  var g=0,y=0,r=0;
+  for(var i=0;i<nodes.length;i++){
+    if(!nodes[i].meta||!nodes[i].meta.health) continue;
+    var v=(nodes[i].meta.health||"").trim().toLowerCase();
+    if(v==="green"||v==="healthy"||v==="health"||v==="ok"||v==="good") g++;
+    else if(v==="yellow"||v==="warning"||v==="amber"||v==="degraded") y++;
+    else if(v==="red"||v==="critical"||v==="error"||v==="down"||v==="stale") r++;
+  }
+  return {green:g,yellow:y,red:r,total:g+y+r};
+};
+
+/* ── Append colored health dots to a subtitle element ── */
+Visual.prototype._appendHealthSummary=function(el,nodes){
+  var h=this._countHealth(nodes);
+  if(h.total===0) return;
+  var span=document.createElement("span");
+  span.className="lineage-health-summary";
+  var parts=[];
+  if(h.green>0) parts.push('<span style="color:#22c55e">\u25CF</span>'+h.green);
+  if(h.yellow>0) parts.push('<span style="color:#eab308">\u25CF</span>'+h.yellow);
+  if(h.red>0) parts.push('<span style="color:#ef4444">\u25CF</span>'+h.red);
+  span.innerHTML=" \u00b7 "+parts.join(" ");
+  el.appendChild(span);
 };
 
 /* ── Copy to clipboard + toast ── */
@@ -720,7 +768,7 @@ Visual.prototype.clearHighlight=function(layers,nodeEls,svg){
   });
   /* v5.4: restore original subtitles */
   for(var sc in this._subtitleOriginals){
-    if(this._subtitleEls[sc]) this._subtitleEls[sc].textContent=this._subtitleOriginals[sc];
+    if(this._subtitleEls[sc]) this._subtitleEls[sc].innerHTML=this._subtitleOriginals[sc];
   }
 };
 
