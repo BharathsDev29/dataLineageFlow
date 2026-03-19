@@ -38,6 +38,13 @@
         "storageFontSize": {
           "type": { "numeric": true },
           "displayName": "Storage Label Font Size"
+        },
+        "healthStyle": {
+          "type": { "enumeration": [
+            { "value": "dot", "displayName": "Dot" },
+            { "value": "box", "displayName": "Box Highlight" }
+          ]},
+          "displayName": "Health Style"
         }
       }
     },
