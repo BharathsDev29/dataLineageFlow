@@ -26,7 +26,7 @@ function Visual(options){
   this.container=document.createElement("div");
   this.container.className="lineage-container";
   this.target.appendChild(this.container);
-  this.settings={headerFontSize:10,cellFontSize:10,storageFontSize:7,lineOpacity:0.25,lineWidth:1.5,showBadge:true,enableCrossFilter:true,urlClickAction:"open",showTooltip:true};
+  this.settings={headerFontSize:10,cellFontSize:10,storageFontSize:7,lineOpacity:0.25,lineWidth:1.5,showBadge:true,enableCrossFilter:true,urlClickAction:"open",showTooltip:true,healthStyle:"dot"};
   this.layerColorOverrides={};
   this.layerSubtitleOverrides={};
   this.layerIsUrl={};
@@ -154,11 +154,21 @@ Visual.prototype.update=function(options){
             var hVal=(node.meta.health||"").toLowerCase();
             var isWarn=(hVal==="yellow"||hVal==="warning"||hVal==="amber"||hVal==="degraded");
             var isRed=(hVal==="red"||hVal==="critical"||hVal==="error"||hVal==="down"||hVal==="stale");
-            var hspan=document.createElement("span");
-            hspan.className="lineage-health-dot";
-            hspan.style.background=healthColor(node.meta.health);
-            hspan.style.boxShadow="0 0 4px "+healthColor(node.meta.health);
-            el.appendChild(hspan);
+            if(self.settings.healthStyle==="box"){
+              if(isRed){
+                el.style.border="1.5px solid #ef4444";
+                el.style.boxShadow="0 0 8px rgba(239,68,68,0.35)";
+              } else if(isWarn){
+                el.style.border="1.5px solid #eab308";
+                el.style.boxShadow="0 0 8px rgba(234,179,8,0.3)";
+              }
+            } else {
+              var hspan=document.createElement("span");
+              hspan.className="lineage-health-dot";
+              hspan.style.background=healthColor(node.meta.health);
+              hspan.style.boxShadow="0 0 4px "+healthColor(node.meta.health);
+              el.appendChild(hspan);
+            }
           }
 
           /* v5 #2: URL icon only for columns marked as URL in format pane */
@@ -783,6 +793,7 @@ Visual.prototype.readSettings=function(dv){
     if(g.showBadge!=null) this.settings.showBadge=!!g.showBadge;
     if(g.showTooltip!=null) this.settings.showTooltip=!!g.showTooltip;
     if(g.storageFontSize!=null) this.settings.storageFontSize=Math.max(5,Math.min(20,Number(g.storageFontSize)||7));
+    if(g.healthStyle!=null) this.settings.healthStyle=String(g.healthStyle);
   }
   var ls=obj.lineSettings;
   if(ls){
@@ -848,7 +859,8 @@ Visual.prototype.getFormattingModel=function(){
       {displayName:"Cell Font Size",uid:"cellFontSize_uid",control:{type:"NumUpDown",properties:{descriptor:{objectName:"general",propertyName:"cellFontSize"},value:g.cellFontSize||10}}},
       {displayName:"Show Count Badge",uid:"showBadge_uid",control:{type:"ToggleSwitch",properties:{descriptor:{objectName:"general",propertyName:"showBadge"},value:g.showBadge!=null?g.showBadge:true}}},
       {displayName:"Show Tooltip on Hover",uid:"showTooltip_uid",control:{type:"ToggleSwitch",properties:{descriptor:{objectName:"general",propertyName:"showTooltip"},value:g.showTooltip!=null?g.showTooltip:true}}},
-      {displayName:"Storage Label Font Size",uid:"storageFontSize_uid",control:{type:"NumUpDown",properties:{descriptor:{objectName:"general",propertyName:"storageFontSize"},value:g.storageFontSize||7}}}
+      {displayName:"Storage Label Font Size",uid:"storageFontSize_uid",control:{type:"NumUpDown",properties:{descriptor:{objectName:"general",propertyName:"storageFontSize"},value:g.storageFontSize||7}}},
+      {displayName:"Health Style",uid:"healthStyle_uid",control:{type:"Dropdown",properties:{descriptor:{objectName:"general",propertyName:"healthStyle"},value:g.healthStyle||"dot"}}}
     ]}]
   };
 
